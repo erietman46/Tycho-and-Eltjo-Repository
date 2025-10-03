@@ -1,124 +1,110 @@
-import sympy as sp
+import numpy as np
+from scipy.integrate import quad
 
-import math
+# ------------------- Constants -------------------
+b = 22.12
+C_r = 3.53
+lambda_w = 0.32
+C_t = 1.11
 
-def y_MAC_sympy(c_root, c_tip, b):
-    """
-    Compute the spanwise location of the Mean Aerodynamic Chord (MAC)
-    using symbolic integration in sympy.
-    
-    Parameters:
-        c_root : float
-            Root chord length
-        c_tip : float
-            Tip chord length
-        b : float
-            Full wingspan
-            
-    Returns:
-        y_MAC : float
-            Spanwise location of MAC along half-span
-    """
-    y = sp.symbols('y', real=True)
-    
-    # chord distribution function
-    c_y = c_root - (2*(c_root - c_tip)/b) * y
-    
-    # integrand for y_MAC
-    integrand = y * c_y
-    
-    # definite integral from 0 to b/2
-    integral = sp.integrate(integrand, (y, 0, b/2))
-    
-    # trapezoidal wing area
-    S = (b/2) * (c_root + c_tip)
-    
-    # y_MAC formula
-    y_MAC = (2/S) * integral
-    
-    # evaluate numerically
-    return float(y_MAC.evalf())
-c_r = 1.118731233
-c_t = 3.53865671
-b = 22.12  # example wingspan
+c_l_alpha = 6.4      # 2D lift curve slope [1/rad]
+c_d0 = 0.00525       # profile drag
+tau = 0.5            # control surface effectiveness
+C_e_over_C_h = 0.28  # Aileron chord ratio
 
-y_mac = y_MAC_sympy(c_r, c_t, b)
-print(f"y_MAC = {y_mac:.4f}")
+# --- flight condition inputs ---
+CL_Max = 1.5
+M_Max = 22238.96     # maximum takeoff mass in kg
+S = 51.4             # wing area in m^2
+T = 288.15
+R = 287
+P_atm = 101325
+g = 9.80665
 
+# ------------------- Utility Functions -------------------
+def chord(y):
+    """Chord distribution (linear taper wing)."""
+    return C_r - (2 * (C_r - C_t)) / b * y
 
-# Define symbol
-y = sp.Symbol('y', real=True)
+def aileron_area(b1, b2):
+    """Reference aileron area between span stations b1 and b2."""
+    return quad(chord, b1, b2)[0]
 
-def c_MAC(c_r, c_t, b):
-    """
-    Computes the mean aerodynamic chord (MAC) for a trapezoidal wing
-    using the integral definition and Sympy.
-    
-    Parameters:
-        c_r (float): Root chord length
-        c_t (float): Tip chord length
-        b   (float): Wingspan
-        
-    Returns:
-        sympy expression (exact) and float (approximate)
-    """
-    # chord distribution
-    c_y = c_r - (2*(c_r - c_t)/b) * y
-    
-    # wing area (trapezoid)
-    S = (b/2) * (c_r + c_t)
-    
-    # semispan
-    s = b/2
-    
-    # integral definition of MAC
-    integral_val = sp.integrate(c_y**2, (y, 0, s))
-    c_mac_expr = (2/S) * integral_val
-    
-    return sp.simplify(c_mac_expr), float(c_mac_expr)
+def CL_delta_a(c_l_alpha, tau, S_ref, b, C_r, b1, b2, lambda_w):
+    t1 = 0.5 * (b2**2 - b1**2)
+    t2 = (2 * (1 - lambda_w) / (3 * b)) * (b2**3 - b1**3)
+    return (2 * c_l_alpha * tau / (S_ref * b)) * C_r * (t1 - t2)
 
-# Example usage
-print('c_MAC:', c_MAC(3.53865671, 1.118731233, 22.12))
+def Cl_p(c_l_alpha, c_d0, S_ref, b, C_r, lambda_w):
+    t1 = (1 / 3) * (b / 2) ** 3
+    t2 = ((1 - lambda_w) / (2 * b)) * (b / 2) ** 4
+    return -4 * (c_l_alpha + c_d0) / (S_ref * b**2) * C_r * (t1 - t2)
 
+def roll_rate(CL_da, Clp_val, delta_a, V, b):
+    """Roll rate in rad/s."""
+    return -CL_da / Clp_val * delta_a * (2 * V / b)
 
-def leading_edge_sweep_and_xLEMAC(lambda_c4_deg, taper_ratio, b, c_root):
-    """
-    Compute leading edge sweep angle and x_LE of MAC from quarter-chord sweep.
-    
-    Parameters:
-    lambda_c4_deg : float : Quarter-chord sweep angle in degrees
-    taper_ratio : float : Tip chord / root chord
-    b : float : Wingspan
-    c_root : float : Root chord length
-    
-    Returns:
-    tuple : (leading edge sweep in degrees, x_LE_MAC)
-    """
-    # Convert quarter-chord sweep to radians
-    lambda_c4_rad = math.radians(lambda_c4_deg)
-    
-    # Compute leading edge sweep in radians
-    lambda_le_rad = math.atan(math.tan(lambda_c4_rad) - (c_root / (2*b)) * (taper_ratio - 1))
-    
-    # Convert back to degrees
-    lambda_le_deg = math.degrees(lambda_le_rad)
-    
-    # Compute y_MAC for trapezoidal wing
-    y_MAC = (b / 6) * (1 + 2*taper_ratio) / (1 + taper_ratio)
-    
-    # Compute x_LE_MAC
-    x_LE_MAC = y_MAC * math.tan(lambda_le_rad)
-    
-    return lambda_le_deg, x_LE_MAC
+def compute_speeds():
+    """Return stall speed and minimum control speed (m/s)."""
+    W = M_Max * g
+    rho = P_atm / (R * T)
+    V_stall = np.sqrt(2 * W / (S * rho * CL_Max))
+    V_min_control = 1.13 * V_stall
+    return V_stall, V_min_control
 
-# Given values
-lambda_c4 = 24.02  # degrees
-taper_ratio = 0.32
-b = 22.12  # wingspan
-c_r = 3.54  # root chord
+# ------------------- Pre-computations -------------------
+V_sr, V_mc = compute_speeds()
+V = V_mc
 
-# Compute leading edge sweep and x_LE_MAC
-lambda_le, x_LE_MAC = leading_edge_sweep_and_xLEMAC(lambda_c4, taper_ratio, b, c_r)
+# Roll requirements
+P_target = np.radians(4)     # 4°/s target
+safety_factor = 5
+P_req = P_target * safety_factor
 
-print(f"Leading Edge Sweep: {lambda_le:.2f} degrees")
-print(f"x_LE_MAC: {x_LE_MAC:.2f} meters")
+# Limits
+b1_min, b1_max = 5, 8
+b2_min, b2_max = 8.5, 10.5
+delta_min, delta_max = 10, 25
+
+# ------------------- Iteration -------------------
+best_solution = None
+smallest_error = float("inf")
+
+for b1 in np.arange(b1_min, b1_max + 1e-6, 0.1):
+    for b2 in np.arange(b2_min, b2_max + 1e-6, 0.1):
+        if b2 <= b1:
+            continue
+        S_ref_val = aileron_area(b1, b2)
+        if S_ref_val <= 0 or (b2 - b1) <= 0:
+            continue
+
+        Clp_val = Cl_p(c_l_alpha, c_d0, S_ref_val, b, C_r, lambda_w)
+
+        for delta_a in np.radians(np.arange(delta_min, delta_max + 1e-6, 1)):
+            CL_da = CL_delta_a(c_l_alpha, tau, S_ref_val, b, C_r, b1, b2, lambda_w)
+            P_actual = roll_rate(CL_da, Clp_val, delta_a, V, b)
+
+            if P_actual >= P_req:
+                err = abs(P_actual - P_req)
+                if err < smallest_error:
+                    smallest_error = err
+                    best_solution = (b1, b2, np.degrees(delta_a), P_actual, S_ref_val)
+
+# ------------------- Output -------------------
+print("Speed summary (computed):")
+print(f"  V_sr (stall) = {V_sr:.3f} m/s = {V_sr*1.943844:.2f} kt")
+print(f"  V_mc (=1.13*V_sr) = {V_mc:.3f} m/s = {V_mc*1.943844:.2f} kt")
+print(f"  Using V = V_mc = {V:.3f} m/s for roll calculations\n")
+
+if best_solution:
+    b1, b2, da, P_actual, S_ref_best = best_solution
+    print(f"Target roll rate (with safety factor {safety_factor:.1f}×): "
+          f"{np.degrees(P_req):.2f}°/s")
+    print("\nBest feasible configuration:")
+    print(f"  Inboard start  b1 = {b1:.2f} m")
+    print(f"  Outboard end   b2 = {b2:.2f} m")
+    print(f"  Deflection     δa = {da:.1f}°")
+    print(f"  Achieved roll rate = {np.degrees(P_actual):.2f}°/s")
+    print(f"  Aileron area = {S_ref_best:.3f} m²")
+else:
+    print("No feasible aileron configuration found.")
