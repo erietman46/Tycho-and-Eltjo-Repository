@@ -29,8 +29,8 @@ for V, n1, n2 in zip(V_points[1:], n_pos[1:], n_neg[1:]):
     plt.plot([V,V], [n1,n2], 'k--', linewidth=1)
 
 # Labels for key points
-labels_pos = ['A\'','B\'','C\'','D\'']
-labels_neg = ['A\'','G\'','F\'','E\'']
+labels_pos = ["A'", "B'", "C'", "D'"]
+labels_neg = ["A'", "G'", "F'", "E'"]
 for V, n, label in zip(V_points, n_pos, labels_pos):
     plt.text(V, n+0.1, label, fontsize=8, ha='center', color='blue')
 for V, n, label in zip(V_points, n_neg, labels_neg):
