@@ -49,7 +49,7 @@ plt.xlabel('V [m/s]')
 plt.ylabel('n')
 plt.title('Gust Load Diagram')
 plt.grid(True, linestyle=':', linewidth=0.5)
-plt.legend(fontsize=8)
+plt.legend(fontsize=12)
 
 plt.tight_layout()
 plt.show()
