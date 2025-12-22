@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # ============================================================
 # 1) READ EXPERIMENTAL DATA
 # ============================================================
-df = pd.read_csv("2D Experimental Data.txt", sep=r"\s+")
+df = pd.read_csv(2, sep=r"\s+")
 
 # Force numeric conversion
 df["Alpha"] = pd.to_numeric(df["Alpha"], errors="coerce")
