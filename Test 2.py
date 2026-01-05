@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-
 # Data (from your mass breakdown table)
 labels = ["OEM", "OEM + fuel", "OEM + max payload + fuel", "OEM + max payload"]
 x_cg_mac = [0.15, 0.15, 0.548, 0.590]
