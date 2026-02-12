@@ -1,0 +1,16 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Reading a CSV file into a DataFrame
+df_csv = pd.read_csv(r'C:\Users\eltjo\Downloads\reader\week1\data\AirfoilSelfNoise.csv', skiprows=1) # skiprows=2 skips the first two rows
+
+# Displaying the DataFrame
+print(df_csv)
+
+# Plotting the airfoil
+plt, ax = plt.subplots(1)
+ax.plot(df_csv['x'][:31], df_csv['y'][:31], label='Top Surface')
+ax.plot(-df_csv['x'][32:], -df_csv['y'][32:], label='Bottom Surface')
+ax.set_aspect('equal', adjustable='box')
+ax.set_title('EPPLER 67 AIRFOIL')
+plt.show()
